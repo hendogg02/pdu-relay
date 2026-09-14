@@ -1,0 +1,16 @@
+[Unit]
+Description=PDU Relay for DashBoard PDU Ctrl.grid
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/pdu-relay
+ExecStart=/usr/bin/node /opt/pdu-relay/pdu-relay-server.js
+Restart=on-failure
+RestartSec=5
+User=nobody
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

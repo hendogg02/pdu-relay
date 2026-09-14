@@ -1,0 +1,15 @@
+{
+  "name": "pdu-relay",
+  "version": "1.0.0",
+  "description": "Relay service for the PDU Ctrl.grid DashBoard panel - power-cycles USP-PDU-Pro outlets via the UniFi Network controller's legacy REST API.",
+  "type": "module",
+  "main": "pdu-relay-server.js",
+  "scripts": {
+    "start": "node pdu-relay-server.js",
+    "cli": "node cli.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "undici": "^6.19.8"
+  }
+}

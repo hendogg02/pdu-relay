@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDU Relay</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1f2330;
+    --border: #2a2f3d;
+    --text: #e8eaf0;
+    --muted: #8b90a0;
+    --accent: #4c8dff;
+    --green: #2fb96b;
+    --red: #e0523f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px; }
+  .center-screen {
+    min-height: 80vh; display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 28px; width: 340px;
+  }
+  .card h2 { margin-top: 0; font-size: 17px; }
+  .card p.hint { color: var(--muted); font-size: 13px; margin-top: -8px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text], input[type=password], select {
+    width: 100%; padding: 9px 10px; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; font-size: 14px;
+  }
+  input[type=checkbox] { margin-right: 6px; }
+  button {
+    cursor: pointer; border: none; border-radius: 6px; padding: 10px 16px;
+    font-size: 14px; font-weight: 600; color: white; background: var(--accent);
+  }
+  button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  button.danger { background: var(--red); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 18px; }
+  .error { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 16px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tabs button {
+    background: transparent; color: var(--muted); border-radius: 0;
+    padding: 10px 4px; margin-right: 20px; font-weight: 500;
+    border-bottom: 2px solid transparent;
+  }
+  .tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+  section { display: none; }
+  section.active { display: block; }
+  .field-group { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin-bottom: 20px; }
+  .field-group h3 { margin-top: 0; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .pdu-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
+  .pdu-card h3 { margin: 0 0 12px; font-size: 15px; }
+  .outlet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .outlet-btn {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 10px; text-align: center; font-size: 13px; font-weight: 600;
+  }
+  .outlet-btn.on { background: rgba(47,185,107,0.18); border-color: var(--green); color: #7fe3ab; }
+  .outlet-btn.off { background: rgba(224,82,63,0.14); border-color: var(--red); color: #f0a599; }
+  .muted { color: var(--muted); }
+  .status-msg { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .top-actions { display: flex; justify-content: flex-end; gap: 10px; }
+</style>
+</head>
+<body>
+
+<div id="gate" class="center-screen"></div>
+
+<div id="app" style="display:none;">
+  <header>
+    <div>
+      <h1>PDU Relay</h1>
+      <div class="sub">Web management for the PDU Ctrl.grid DashBoard panel</div>
+    </div>
+    <div class="top-actions">
+      <span class="sub" id="whoami"></span>
+      <button class="secondary" id="logoutBtn">Log out</button>
+    </div>
+  </header>
+  <main>
+    <div class="tabs">
+      <button data-tab="pdus" class="active">PDUs</button>
+      <button data-tab="settings">Connection Settings</button>
+      <button data-tab="account">Admin Account</button>
+    </div>
+
+    <section id="tab-pdus" class="active">
+      <div class="status-msg" id="pduStatus"></div>
+      <div id="pduList"></div>
+    </section>
+
+    <section id="tab-settings">
+      <div class="field-group">
+        <h3>UniFi Controller</h3>
+        <label>UDM Host / IP</label>
+        <input type="text" id="cfgHost" placeholder="192.168.1.1">
+        <label>Site name</label>
+        <input type="text" id="cfgSite" placeholder="default">
+        <label>Local admin username</label>
+        <input type="text" id="cfgUser" placeholder="a local UniFi account, not cloud SSO">
+        <label>Local admin password</label>
+        <input type="password" id="cfgPass" placeholder="leave blank to keep current password">
+        <label><input type="checkbox" id="cfgSelfSigned"> Allow self-signed certificate</label>
+        <label>PDU model code</label>
+        <input type="text" id="cfgModel" placeholder="USPPDUP">
+        <div class="row">
+          <button id="saveConfigBtn">Save</button>
+          <span class="error" id="configError"></span>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-account">
+      <div class="field-group">
+        <h3>Change Admin Login</h3>
+        <label>Current password</label>
+        <input type="password" id="curPass">
+        <label>New username</label>
+        <input type="text" id="newUser">
+        <label>New password (8+ characters)</label>
+        <input type="password" id="newPass">
+        <div class="row">
+          <button id="changeAccountBtn">Update</button>
+          <span class="error" id="accountError"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function api(path, options) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  let body = null;
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error((body && body.error) || res.statusText);
+  return body;
+}
+
+function renderGateCard(html) {
+  $("gate").innerHTML = '<div class="card">' + html + '</div>';
+}
+
+function showSetupForm() {
+  renderGateCard(`
+    <h2>Create the admin account</h2>
+    <p class="hint">This is the login for this web page, separate from your UniFi credentials.</p>
+    <label>Username</label>
+    <input type="text" id="setupUser">
+    <label>Password (8+ characters)</label>
+    <input type="password" id="setupPass">
+    <div class="row"><button id="setupBtn" style="width:100%">Create account</button></div>
+    <div class="error" id="setupError"></div>
+  `);
+  $("setupBtn").onclick = async () => {
+    try {
+      await api("/api/setup", { method: "POST", body: JSON.stringify({
+        username: $("setupUser").value.trim(), password: $("setupPass").value,
+      })});
+      boot();
+    } catch (err) { $("setupError").textContent = err.message; }
+  };
+}
+
+function showLoginForm() {
+  renderGateCard(`
+    <h2>Log in</h2>
+    <label>Username</label>
+    <input type="text" id="loginUser">
+    <label>Password</label>
+    <input type="password" id="loginPass">
+    <div class="row"><button id="loginBtn" style="width:100%">Log in</button></div>
+    <div class="error" id="loginError"></div>
+  `);
+  $("loginBtn").onclick = async () => {
+    try {
+      await api("/api/login", { method: "POST", body: JSON.stringify({
+        username: $("loginUser").value.trim(), password: $("loginPass").value,
+      })});
+      boot();
+    } catch (err) { $("loginError").textContent = err.message; }
+  };
+}
+
+let pduPollTimer = null;
+
+function showApp(username) {
+  $("gate").style.display = "none";
+  $("app").style.display = "block";
+  $("whoami").textContent = username;
+  loadConfigIntoForm();
+  refreshPdus();
+  clearInterval(pduPollTimer);
+  pduPollTimer = setInterval(refreshPdus, 10000);
+}
+
+document.querySelectorAll(".tabs button").forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll("section").forEach((s) => s.classList.remove("active"));
+    btn.classList.add("active");
+    $("tab-" + btn.dataset.tab).classList.add("active");
+  };
+});
+
+$("logoutBtn").onclick = async () => {
+  await api("/api/logout", { method: "POST" });
+  clearInterval(pduPollTimer);
+  boot();
+};
+
+async function loadConfigIntoForm() {
+  const cfg = await api("/api/config");
+  $("cfgHost").value = cfg.udmHost || "";
+  $("cfgSite").value = cfg.udmSiteName || "";
+  $("cfgUser").value = cfg.udmUsername || "";
+  $("cfgPass").value = "";
+  $("cfgPass").placeholder = cfg.hasPassword ? "leave blank to keep current password" : "enter a password";
+  $("cfgSelfSigned").checked = !!cfg.allowSelfSigned;
+  $("cfgModel").value = cfg.pduModel || "";
+}
+
+$("saveConfigBtn").onclick = async () => {
+  $("configError").textContent = "";
+  try {
+    await api("/api/config", { method: "POST", body: JSON.stringify({
+      udmHost: $("cfgHost").value,
+      udmSiteName: $("cfgSite").value,
+      udmUsername: $("cfgUser").value,
+      udmPassword: $("cfgPass").value,
+      allowSelfSigned: $("cfgSelfSigned").checked,
+      pduModel: $("cfgModel").value,
+    })});
+    await loadConfigIntoForm();
+    refreshPdus();
+  } catch (err) { $("configError").textContent = err.message; }
+};
+
+$("changeAccountBtn").onclick = async () => {
+  $("accountError").textContent = "";
+  try {
+    await api("/api/admin/password", { method: "POST", body: JSON.stringify({
+      currentPassword: $("curPass").value,
+      newUsername: $("newUser").value.trim(),
+      newPassword: $("newPass").value,
+    })});
+    $("curPass").value = ""; $("newUser").value = ""; $("newPass").value = "";
+    $("whoami").textContent = $("newUser").value || $("whoami").textContent;
+    $("accountError").style.color = "var(--green)";
+    $("accountError").textContent = "Updated.";
+  } catch (err) { $("accountError").style.color = "var(--red)"; $("accountError").textContent = err.message; }
+};
+
+async function refreshPdus() {
+  const statusEl = $("pduStatus");
+  const listEl = $("pduList");
+  try {
+    const pdus = await api("/api/pdus");
+    if (pdus.length === 0) {
+      statusEl.textContent = "No PDUs found. Check Connection Settings, or confirm the PDU is adopted in UniFi.";
+      listEl.innerHTML = "";
+      return;
+    }
+    statusEl.textContent = pdus.length + " PDU(s) found.";
+    for (const pdu of pdus) {
+      let card = document.getElementById("pdu_" + pdu.id);
+      if (!card) {
+        card = document.createElement("div");
+        card.className = "pdu-card";
+        card.id = "pdu_" + pdu.id;
+        card.innerHTML = '<h3></h3><div class="outlet-grid"></div>';
+        listEl.appendChild(card);
+      }
+      card.querySelector("h3").textContent = pdu.name;
+      const outlets = await api("/api/pdus/" + pdu.id + "/outlets");
+      const grid = card.querySelector(".outlet-grid");
+      grid.innerHTML = "";
+      for (const o of outlets) {
+        const b = document.createElement("button");
+        b.className = "outlet-btn " + (o.state === 1 ? "on" : "off");
+        b.textContent = o.name;
+        b.onclick = async () => {
+          b.disabled = true;
+          const original = b.textContent;
+          b.textContent = "Rebooting...";
+          try {
+            await api("/api/pdus/" + pdu.id + "/outlet/" + o.index + "/cycle", { method: "POST" });
+          } catch (err) {
+            b.textContent = "Error";
+          }
+          setTimeout(refreshPdus, 3000);
+          setTimeout(() => { b.disabled = false; }, 3500);
+        };
+        grid.appendChild(b);
+      }
+    }
+  } catch (err) {
+    statusEl.textContent = "Error: " + err.message;
+  }
+}
+
+async function boot() {
+  $("app").style.display = "none";
+  $("gate").style.display = "flex";
+  const session = await api("/api/session");
+  if (session.setupNeeded) { showSetupForm(); return; }
+  if (!session.loggedIn) { showLoginForm(); return; }
+  showApp(session.username);
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -11,6 +11,14 @@ const commands = {
     const device = await unifi.getPduDeviceById(id);
     console.log(JSON.stringify(unifi.listPduOutlets(device), null, 2));
   },
+  async "pdu-raw"(id) {
+    if (!id) throw new Error("Usage: pdu-raw <pduId>");
+    const device = await unifi.getPduDeviceById(id);
+    // Unmapped, straight from UniFi - for checking our field-name
+    // assumptions (relay_state, etc.) against what the controller actually
+    // sends, rather than what we expect it to send.
+    console.log(JSON.stringify({ outlet_table: device.outlet_table, outlet_overrides: device.outlet_overrides }, null, 2));
+  },
   async "pdu-cycle"(id, index) {
     if (!id || !index) throw new Error("Usage: pdu-cycle <pduId> <outletIndex>");
     await unifi.cyclePduOutlet(id, Number(index));
@@ -26,6 +34,7 @@ if (!handler) {
 Commands:
   pdu-list
   pdu-outlets <pduId>
+  pdu-raw <pduId>
   pdu-cycle <pduId> <outletIndex>
 `);
   process.exit(command ? 1 : 0);

@@ -52,7 +52,16 @@ async function loginLegacy(cfg) {
   });
 
   if (!res.ok) {
-    throw new Error(`Legacy login failed: ${res.status} ${res.statusText}`);
+    const text = await res.text().catch(() => "");
+    let reason = null;
+    try {
+      reason = JSON.parse(text)?.meta?.msg;
+    } catch {
+      // not JSON - fall through with no extra detail
+    }
+    throw new Error(
+      `Legacy login failed: ${res.status} ${res.statusText}` + (reason ? ` (${reason})` : "")
+    );
   }
 
   // Set-Cookie includes attributes (Path, Expires, HttpOnly, Secure, etc.)
@@ -103,11 +112,25 @@ async function requestLegacy(method, path, body, isRetry = false) {
   }
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  let parseFailed = false;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      parseFailed = true;
+    }
+  }
 
   if (!res.ok) {
+    // UniFi's error responses put the actual reason in meta.msg (e.g.
+    // "api.err.LoginRequired", "api.err.NoPermission") - surface that
+    // instead of just the bare HTTP status, since "401" alone doesn't say
+    // whether it's bad credentials, an unauthorized role, or something else.
+    const reason = data?.meta?.msg || (parseFailed ? text.slice(0, 200) : null);
     const err = new Error(
-      `UniFi legacy API ${method} ${path} failed: ${res.status} ${res.statusText}`
+      `UniFi legacy API ${method} ${path} failed: ${res.status} ${res.statusText}` +
+        (reason ? ` (${reason})` : "")
     );
     err.status = res.status;
     err.body = data;

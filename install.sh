@@ -52,6 +52,12 @@ sudo npm install --omit=dev
 echo "==> Installing systemd service"
 sudo cp "${INSTALL_DIR}/pdu-relay.service" /etc/systemd/system/pdu-relay.service
 sudo chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "${INSTALL_DIR}"
+
+# Once the directory is owned by $SERVICE_USER instead of whoever is running
+# this script, git refuses to touch it ("detected dubious ownership") on any
+# future `git pull` - mark it safe system-wide so updates work for any user.
+sudo git config --system --add safe.directory "${INSTALL_DIR}"
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now pdu-relay
 

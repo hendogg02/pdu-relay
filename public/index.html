@@ -343,7 +343,7 @@ async function refreshPdus() {
       grid.innerHTML = "";
       for (const o of outlets) {
         const b = document.createElement("button");
-        b.className = "outlet-btn " + (o.state === 1 ? "on" : "off");
+        b.className = "outlet-btn " + (o.relay_state === 1 ? "on" : "off");
         b.textContent = o.name;
         b.onclick = async () => {
           b.disabled = true;

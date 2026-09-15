@@ -23,6 +23,21 @@ else
   echo "==> Found $(node -v), skipping Node.js install"
 fi
 
+if ! command -v npm >/dev/null 2>&1; then
+  echo "==> node is present but npm isn't - installing it"
+  sudo apt-get update
+  sudo apt-get install -y npm
+fi
+
+echo "==> Checking for git"
+if ! command -v git >/dev/null 2>&1; then
+  echo "==> Installing git"
+  sudo apt-get update
+  sudo apt-get install -y git
+else
+  echo "==> Found $(git --version), skipping git install"
+fi
+
 echo "==> Fetching PDU Relay into ${INSTALL_DIR}"
 if [ -d "${INSTALL_DIR}/.git" ]; then
   sudo git -C "${INSTALL_DIR}" pull --ff-only

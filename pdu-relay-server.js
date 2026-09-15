@@ -260,7 +260,12 @@ const server = http.createServer(async (req, res) => {
       if (req.method === "POST" && p === "/api/admin/password") {
         const { currentPassword, newUsername, newPassword } = await readJsonBody(req);
         if (!verifyAdminPassword(session.username, currentPassword || "")) {
-          sendJson(res, 401, { error: "Current password is incorrect." });
+          // 400, not 401: the session itself is fine (we got this far because
+          // it's valid) - this is a wrong-input rejection on one field, not
+          // an authentication failure. The web UI treats a bare 401 from an
+          // authenticated route as "session expired, log in again", which
+          // would be the wrong reaction to a typo'd current-password field.
+          sendJson(res, 400, { error: "Current password is incorrect." });
           return;
         }
         if (!newUsername || !newPassword || newPassword.length < 8) {

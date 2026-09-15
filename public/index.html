@@ -45,6 +45,12 @@
     border: 1px solid var(--border); border-radius: 6px; font-size: 14px;
   }
   input[type=checkbox] { margin-right: 6px; }
+  .pw-row { display: flex; gap: 8px; align-items: center; }
+  .pw-row input { flex: 1; }
+  .pw-toggle {
+    background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+    padding: 9px 12px; font-size: 12px; font-weight: 500; white-space: nowrap;
+  }
   button {
     cursor: pointer; border: none; border-radius: 6px; padding: 10px 16px;
     font-size: 14px; font-weight: 600; color: white; background: var(--accent);
@@ -116,7 +122,10 @@
         <label>Local admin username</label>
         <input type="text" id="cfgUser" placeholder="a local UniFi account, not cloud SSO">
         <label>Local admin password</label>
-        <input type="password" id="cfgPass" placeholder="leave blank to keep current password">
+        <div class="pw-row">
+          <input type="password" id="cfgPass" placeholder="leave blank to keep current password">
+          <button type="button" class="pw-toggle" data-target="cfgPass">Show</button>
+        </div>
         <label><input type="checkbox" id="cfgSelfSigned"> Allow self-signed certificate</label>
         <label>PDU model code</label>
         <input type="text" id="cfgModel" placeholder="USPPDUP">
@@ -131,11 +140,17 @@
       <div class="field-group">
         <h3>Change Admin Login</h3>
         <label>Current password</label>
-        <input type="password" id="curPass">
+        <div class="pw-row">
+          <input type="password" id="curPass">
+          <button type="button" class="pw-toggle" data-target="curPass">Show</button>
+        </div>
         <label>New username</label>
         <input type="text" id="newUser">
         <label>New password (8+ characters)</label>
-        <input type="password" id="newPass">
+        <div class="pw-row">
+          <input type="password" id="newPass">
+          <button type="button" class="pw-toggle" data-target="newPass">Show</button>
+        </div>
         <div class="row">
           <button id="changeAccountBtn">Update</button>
           <span class="error" id="accountError"></span>
@@ -148,6 +163,8 @@
 <script>
 const $ = (id) => document.getElementById(id);
 
+const AUTH_ENDPOINTS = ["/api/login", "/api/setup", "/api/session"];
+
 async function api(path, options) {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -155,12 +172,33 @@ async function api(path, options) {
   });
   let body = null;
   try { body = await res.json(); } catch (e) {}
+  if (res.status === 401 && !AUTH_ENDPOINTS.includes(path)) {
+    // The session died (most often: the relay restarted, which clears its
+    // in-memory sessions) - go back to the login screen instead of leaving
+    // a stale "Not authenticated" error sitting next to whatever button was
+    // clicked, which looked like the action itself had failed.
+    clearInterval(pduPollTimer);
+    boot();
+    throw new Error("Your session expired - please log in again.");
+  }
   if (!res.ok) throw new Error((body && body.error) || res.statusText);
   return body;
 }
 
 function renderGateCard(html) {
   $("gate").innerHTML = '<div class="card">' + html + '</div>';
+  wirePasswordToggles($("gate"));
+}
+
+function wirePasswordToggles(root) {
+  root.querySelectorAll(".pw-toggle").forEach((btn) => {
+    btn.onclick = () => {
+      const input = document.getElementById(btn.dataset.target);
+      const showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.textContent = showing ? "Show" : "Hide";
+    };
+  });
 }
 
 function showSetupForm() {
@@ -170,7 +208,10 @@ function showSetupForm() {
     <label>Username</label>
     <input type="text" id="setupUser">
     <label>Password (8+ characters)</label>
-    <input type="password" id="setupPass">
+    <div class="pw-row">
+      <input type="password" id="setupPass">
+      <button type="button" class="pw-toggle" data-target="setupPass">Show</button>
+    </div>
     <div class="row"><button id="setupBtn" style="width:100%">Create account</button></div>
     <div class="error" id="setupError"></div>
   `);
@@ -190,7 +231,10 @@ function showLoginForm() {
     <label>Username</label>
     <input type="text" id="loginUser">
     <label>Password</label>
-    <input type="password" id="loginPass">
+    <div class="pw-row">
+      <input type="password" id="loginPass">
+      <button type="button" class="pw-toggle" data-target="loginPass">Show</button>
+    </div>
     <div class="row"><button id="loginBtn" style="width:100%">Log in</button></div>
     <div class="error" id="loginError"></div>
   `);
@@ -330,6 +374,7 @@ async function boot() {
   showApp(session.username);
 }
 
+wirePasswordToggles(document);
 boot();
 </script>
 </body>

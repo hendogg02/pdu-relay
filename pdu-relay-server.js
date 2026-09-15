@@ -299,6 +299,21 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // Direct on/off, as opposed to /cycle's off-wait-on reboot. Web UI
+      // only - the DashBoard panel only exposes reboot, on purpose.
+      const apiPowerMatch = p.match(/^\/api\/pdus\/([^/]+)\/outlet\/(\d+)\/power$/);
+      if (req.method === "POST" && apiPowerMatch) {
+        const [, id, indexStr] = apiPowerMatch;
+        const { state } = await readJsonBody(req);
+        if (state !== "on" && state !== "off") {
+          sendJson(res, 400, { error: 'state must be "on" or "off"' });
+          return;
+        }
+        await unifi.setPduOutletState(id, Number(indexStr), state === "on");
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+
       sendJson(res, 404, { error: "Not found" });
       return;
     }

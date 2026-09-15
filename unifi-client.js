@@ -179,12 +179,18 @@ export async function getPduDeviceById(id) {
   return device;
 }
 
-/** Live per-outlet status (index, name, relay_state) as configured in the UniFi web UI. */
+/**
+ * Live per-outlet status (index, name, relay_state) as configured in the
+ * UniFi web UI. power_watts is null for outlet types that don't report
+ * metering (e.g. the PDU-Pro's USB outlets) rather than 0, so callers can
+ * tell "no data" apart from "genuinely drawing nothing".
+ */
 export function listPduOutlets(device) {
   return (device.outlet_table || []).map((o) => ({
     index: o.index,
     name: o.name,
     relay_state: o.relay_state ? 1 : 0,
+    power_watts: o.outlet_power !== undefined ? Number(o.outlet_power) : null,
   }));
 }
 
@@ -220,5 +226,13 @@ export async function cyclePduOutlet(id, index, offMs = 3000) {
   const deviceAfterOff = await getPduDeviceById(id);
   await requestLegacy("PUT", `/rest/device/${deviceAfterOff._id}`, {
     outlet_overrides: buildOutletOverrides(deviceAfterOff, index, true),
+  });
+}
+
+/** Directly set one outlet's relay on or off - no cycle, single PUT. */
+export async function setPduOutletState(id, index, on) {
+  const device = await getPduDeviceById(id);
+  await requestLegacy("PUT", `/rest/device/${device._id}`, {
+    outlet_overrides: buildOutletOverrides(device, index, on),
   });
 }

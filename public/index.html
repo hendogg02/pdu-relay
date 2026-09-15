@@ -73,13 +73,22 @@
   .field-group h3 { margin-top: 0; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
   .pdu-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
   .pdu-card h3 { margin: 0 0 12px; font-size: 15px; }
-  .outlet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-  .outlet-btn {
-    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 14px 10px; text-align: center; font-size: 13px; font-weight: 600;
+  .outlet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .outlet-card {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
   }
-  .outlet-btn.on { background: rgba(47,185,107,0.18); border-color: var(--green); color: #7fe3ab; }
-  .outlet-btn.off { background: rgba(224,82,63,0.14); border-color: var(--red); color: #f0a599; }
+  .outlet-card.on { border-color: var(--green); }
+  .outlet-card.off { border-color: var(--red); }
+  .outlet-name { font-size: 13px; font-weight: 600; }
+  .outlet-power { font-size: 12px; color: var(--muted); margin: 2px 0 10px; }
+  .outlet-card.on .outlet-power { color: #7fe3ab; }
+  .outlet-actions { display: flex; gap: 6px; }
+  .outlet-actions button {
+    flex: 1; padding: 7px 4px; font-size: 12px; font-weight: 600;
+    background: var(--panel); color: var(--muted); border: 1px solid var(--border);
+  }
+  .outlet-actions button.current-on { background: rgba(47,185,107,0.18); border-color: var(--green); color: #7fe3ab; }
+  .outlet-actions button.current-off { background: rgba(224,82,63,0.14); border-color: var(--red); color: #f0a599; }
   .muted { color: var(--muted); }
   .status-msg { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
   .top-actions { display: flex; justify-content: flex-end; gap: 10px; }
@@ -342,27 +351,78 @@ async function refreshPdus() {
       const grid = card.querySelector(".outlet-grid");
       grid.innerHTML = "";
       for (const o of outlets) {
-        const b = document.createElement("button");
-        b.className = "outlet-btn " + (o.relay_state === 1 ? "on" : "off");
-        b.textContent = o.name;
-        b.onclick = async () => {
-          b.disabled = true;
-          const original = b.textContent;
-          b.textContent = "Rebooting...";
-          try {
-            await api("/api/pdus/" + pdu.id + "/outlet/" + o.index + "/cycle", { method: "POST" });
-          } catch (err) {
-            b.textContent = "Error";
-          }
-          setTimeout(refreshPdus, 3000);
-          setTimeout(() => { b.disabled = false; }, 3500);
-        };
-        grid.appendChild(b);
+        const isOn = o.relay_state === 1;
+
+        const card = document.createElement("div");
+        card.className = "outlet-card " + (isOn ? "on" : "off");
+
+        const nameEl = document.createElement("div");
+        nameEl.className = "outlet-name";
+        nameEl.textContent = o.name;
+        card.appendChild(nameEl);
+
+        const powerEl = document.createElement("div");
+        powerEl.className = "outlet-power";
+        powerEl.textContent = o.power_watts !== null ? o.power_watts.toFixed(1) + " W" : " ";
+        card.appendChild(powerEl);
+
+        const actions = document.createElement("div");
+        actions.className = "outlet-actions";
+
+        const onBtn = document.createElement("button");
+        onBtn.textContent = "On";
+        onBtn.disabled = isOn;
+        if (isOn) onBtn.classList.add("current-on");
+        onBtn.onclick = () => setOutletPower(pdu.id, o.index, "on", actions);
+
+        const offBtn = document.createElement("button");
+        offBtn.textContent = "Off";
+        offBtn.disabled = !isOn;
+        if (!isOn) offBtn.classList.add("current-off");
+        offBtn.onclick = () => setOutletPower(pdu.id, o.index, "off", actions);
+
+        const rebootBtn = document.createElement("button");
+        rebootBtn.textContent = "Reboot";
+        rebootBtn.onclick = () => rebootOutlet(pdu.id, o.index, actions);
+
+        actions.appendChild(onBtn);
+        actions.appendChild(offBtn);
+        actions.appendChild(rebootBtn);
+        card.appendChild(actions);
+        grid.appendChild(card);
       }
     }
   } catch (err) {
     statusEl.textContent = "Error: " + err.message;
   }
+}
+
+async function setOutletPower(pduId, index, state, actionsEl) {
+  const buttons = actionsEl.querySelectorAll("button");
+  buttons.forEach((b) => { b.disabled = true; });
+  try {
+    await api("/api/pdus/" + pduId + "/outlet/" + index + "/power", {
+      method: "POST", body: JSON.stringify({ state }),
+    });
+  } catch (err) {
+    $("pduStatus").textContent = "Error: " + err.message;
+  }
+  refreshPdus();
+}
+
+async function rebootOutlet(pduId, index, actionsEl) {
+  const buttons = actionsEl.querySelectorAll("button");
+  buttons.forEach((b) => { b.disabled = true; });
+  const rebootBtn = actionsEl.children[2];
+  const original = rebootBtn.textContent;
+  rebootBtn.textContent = "Rebooting...";
+  try {
+    await api("/api/pdus/" + pduId + "/outlet/" + index + "/cycle", { method: "POST" });
+  } catch (err) {
+    rebootBtn.textContent = "Error";
+    $("pduStatus").textContent = "Error: " + err.message;
+  }
+  setTimeout(refreshPdus, 3000);
 }
 
 async function boot() {
